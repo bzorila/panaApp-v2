@@ -16,6 +16,7 @@ DB_CONFIG = {
     "port": "5432"
 }
 
+# Class for parameters table
 class ParameterData(BaseModel):
     timeStamp: str
     parameterSet: str
