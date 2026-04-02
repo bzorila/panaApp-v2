@@ -30,75 +30,36 @@ def get_db_connection():
 async def home():
     return {"message" : "Hello into test mode!"}
 
-def build_insert_query():
-    """Build the full INSERT query with all 256 columns"""
-    
-    # Start with basic columns
-    columns = [
-        'read_at',
-        'parameter_set', 
-        'validated_at',
-        'valid_by',
-        'reader_type'
-    ]
-    
-    # Add 256 parameter columns (00 to FF)
-    for i in range(256):
-        hex_val = format(i, '02X').upper()
-        columns.append(f'parameter{hex_val}')
-    
-    # Build the query with parameterized placeholders
-    placeholders = ', '.join(['%s'] * len(columns))
-    columns_str = ', '.join(columns)
-    
-    return f"""
-        INSERT INTO parameter_data ({columns_str})
-        VALUES ({placeholders})
-        RETURNING id
-    """
 
+    
 @app.post("/api/parameters")
 async def receive_parameters(data: ParameterData):
-    """Insert parameter data with all 256 columns"""
+    """
+    Receive parameter data with readerType and store it in PostgreSQL
+    """
     try:
-        # Parse timestamps
+        # Validate timestamps
         read_at = datetime.strptime(data.timeStamp, "%Y-%m-%d %H:%M:%S")
         validated_at = datetime.strptime(data.validatedAt, "%Y-%m-%d %H:%M:%S")
         
-        # Split parameterSet into 256 chunks (already space-separated)
-        chunks = data.parameterSet.split(' ')
-        
-        # Verify we have exactly 256 chunks
-        if len(chunks) != 256:
-            raise ValueError(f"Expected 256 chunks, got {len(chunks)}")
-        
-        # Verify each chunk is 4 characters
-        for i, chunk in enumerate(chunks):
-            if len(chunk) != 4:
-                raise ValueError(f"Chunk {i} ('{chunk}') is not 4 characters")
-        
-        # Build parameter values list
-        values = [
-            read_at,
-            data.parameterSet,  # Store original string with spaces
-            validated_at,
-            data.validBy,
-            data.readerType
-        ]
-        
-        # Add all 256 chunks
-        values.extend(chunks)
-        
-        # Connect to database and execute
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get the pre-built query
-        insert_query = build_insert_query()
+        # Call the function (not procedure)
+        cursor.callproc(
+            "function_insert_parameter_data",
+            [
+                read_at, 
+                data.parameterSet, 
+                validated_at, 
+                data.validBy,
+                data.readerType
+            ]
+        )
         
-        # Execute the query
-        cursor.execute(insert_query, values)
-        inserted_id = cursor.fetchone()[0]
+        # Get the returned ID
+        result = cursor.fetchone()
+        inserted_id = result[0] if result else None
         
         conn.commit()
         cursor.close()
@@ -108,12 +69,13 @@ async def receive_parameters(data: ParameterData):
             "status": "success",
             "message": "Data inserted successfully",
             "inserted_id": inserted_id,
-            "chunks_count": len(chunks)
+            "read_at": data.timeStamp,
+            "validated_at": data.validatedAt,
+            "validated_by": data.validBy,
+            "reader_type": data.readerType
         }
         
     except Exception as e:
-        if 'conn' in locals():
-            conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
