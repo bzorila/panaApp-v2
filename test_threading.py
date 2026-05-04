@@ -4,15 +4,15 @@ import random
 
 def sync_worker():
     while True:
-        slp = random.randint(1, 15)
+        slp = random.randint(1, 10)
         print("This is SYNC_WORKER!", " *** ", slp)
-        time.sleep(slp)
+        time.sleep(1)
 
 def run_serial_protocol():
     while True:
-        slp = random.randint(1, 100)
+        slp = 10*random.random()
         print("This is SERIAL_WORKER!", " *** ", slp)
-        time.sleep(0.1)
+        time.sleep(slp)
 
 threading.Thread(target=sync_worker, daemon=True).start()
 run_serial_protocol()
