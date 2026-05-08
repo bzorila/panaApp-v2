@@ -4,4 +4,4 @@ __pycache__/
 .env
 .file
 .deb
-.db
+*.db
